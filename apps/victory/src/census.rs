@@ -1,10 +1,12 @@
 //! Which imports do titles need, and which do we cover?
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use memmap2::Mmap;
 use victory_hle::{HleResolver, HostPolicy};
 use victory_loader::Provenance;
 use victory_pe::{ImageInfo, ImportSymbol};
@@ -40,9 +42,10 @@ pub fn run(paths: Vec<PathBuf>, strict: bool, list_missing: bool) -> Result<()> 
             if !entry.file_type().is_file() || !looks_like_pe(path) {
                 continue;
             }
-            let info = match std::fs::read(path)
+            let info = match File::open(path)
                 .map_err(anyhow::Error::from)
-                .and_then(|d| ImageInfo::parse(&d).map_err(anyhow::Error::from))
+                .and_then(|file| unsafe { Mmap::map(&file) }.map_err(anyhow::Error::from))
+                .and_then(|mmap| ImageInfo::parse(&mmap).map_err(anyhow::Error::from))
             {
                 Ok(info) => info,
                 Err(e) => {
